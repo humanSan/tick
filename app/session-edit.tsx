@@ -131,17 +131,25 @@ export default function SessionEditScreen() {
 
   const handleDiscard = useCallback(() => {
     if (existingSession) {
-      Alert.alert('Delete Session', 'Are you sure you want to delete this session?', [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            deleteSession(existingSession.id);
-            router.back();
+      if (Platform.OS === 'web') {
+        const confirmed = window.confirm('Are you sure you want to delete this session?');
+        if (confirmed) {
+          deleteSession(existingSession.id);
+          router.back();
+        }
+      } else {
+        Alert.alert('Delete Session', 'Are you sure you want to delete this session?', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              deleteSession(existingSession.id);
+              router.back();
+            },
           },
-        },
-      ]);
+        ]);
+      }
     } else {
       router.back();
     }

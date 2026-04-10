@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const KEYS = {
   SESSIONS: '@tick/sessions',
@@ -7,7 +8,12 @@ const KEYS = {
 
 export async function loadData<T>(key: string): Promise<T | null> {
   try {
-    const raw = await AsyncStorage.getItem(key);
+    let raw;
+    if (Platform.OS === 'web') {
+      raw = localStorage.getItem(key);
+    } else {
+      raw = await AsyncStorage.getItem(key);
+    }
     return raw ? JSON.parse(raw) : null;
   } catch (e) {
     console.error(`Failed to load ${key}:`, e);
@@ -17,7 +23,11 @@ export async function loadData<T>(key: string): Promise<T | null> {
 
 export async function saveData<T>(key: string, data: T): Promise<void> {
   try {
-    await AsyncStorage.setItem(key, JSON.stringify(data));
+    if (Platform.OS === 'web') {
+      localStorage.setItem(key, JSON.stringify(data));
+    } else {
+      await AsyncStorage.setItem(key, JSON.stringify(data));
+    }
   } catch (e) {
     console.error(`Failed to save ${key}:`, e);
   }

@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ImageIcon, Menu, Pause, Play, Square, RotateCcw } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -41,9 +41,14 @@ export default function StopwatchScreen() {
 
   // Load background image on mount
   useEffect(() => {
-    AsyncStorage.getItem('@tick/bg_image').then(v => {
+    if (Platform.OS === 'web') {
+      const v = localStorage.getItem('@tick/bg_image');
       if (v) setBgImage(v);
-    });
+    } else {
+      AsyncStorage.getItem('@tick/bg_image').then(v => {
+        if (v) setBgImage(v);
+      });
+    }
   }, []);
 
   const pickImage = async () => {
@@ -51,12 +56,19 @@ export default function StopwatchScreen() {
       mediaTypes: ['images'],
       allowsEditing: false,
       quality: 1,
+      base64: true,
     });
 
     if (!result.canceled && result.assets && result.assets.length > 0) {
-      const uri = result.assets[0].uri;
+      const asset = result.assets[0];
+      const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
       setBgImage(uri);
-      AsyncStorage.setItem('@tick/bg_image', uri);
+      
+      if (Platform.OS === 'web') {
+        localStorage.setItem('@tick/bg_image', uri);
+      } else {
+        AsyncStorage.setItem('@tick/bg_image', uri);
+      }
     }
   };
 
