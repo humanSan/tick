@@ -4,26 +4,53 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { ImageIcon, Menu, Pause, Play, Square, RotateCcw } from 'lucide-react-native';
+import { ImageIcon, Menu, Pause, Play, Square, RotateCcw, Sun } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import Animated, {
   Easing,
-  cancelAnimation,
-  interpolate,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BorderRadius, Colors, FontSize, Spacing } from '../../src/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const RING_SIZE = SCREEN_WIDTH * 0.7;
-
 type TimerState = 'idle' | 'running' | 'paused';
+
+const DimnessSlider = ({ value, onValueChange }: { value: number, onValueChange: (v: number) => void }) => {
+  const [width, setWidth] = useState(0);
+  const widthRef = useRef(width);
+  widthRef.current = width;
+
+  const handleDrag = useCallback((e: any) => {
+    if (widthRef.current > 0) {
+      let x = e.nativeEvent.locationX;
+      onValueChange(Math.max(0, Math.min(x / widthRef.current, 1)));
+    }
+  }, [onValueChange]);
+
+  return (
+    <View 
+      style={{ height: 40, justifyContent: 'center', width: 200 }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+      onStartShouldSetResponder={() => true}
+      onResponderGrant={handleDrag}
+      onResponderMove={handleDrag}
+    >
+      <View pointerEvents="none" style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 3 }}>
+        <View style={{ height: 6, backgroundColor: Colors.white, width: `${value * 100}%`, borderRadius: 3 }} />
+      </View>
+      <View pointerEvents="none" style={{
+        position: 'absolute',
+        left: `${value * 100}%`,
+        marginLeft: -10,
+        height: 20, width: 20, borderRadius: 10,
+        backgroundColor: Colors.white,
+      }} />
+    </View>
+  );
+};
 
 export default function StopwatchScreen() {
   const router = useRouter();
@@ -33,6 +60,8 @@ export default function StopwatchScreen() {
   const [timerState, setTimerState] = useState<TimerState>('idle');
   const [elapsed, setElapsed] = useState(0);
   const [bgImage, setBgImage] = useState<string | null>(null);
+  const [bgDimness, setBgDimness] = useState<number>(0.3);
+  const [showDimSlider, setShowDimSlider] = useState(false);
 
   const startTimeRef = useRef<number>(0);
   const pausedElapsedRef = useRef<number>(0);
@@ -44,10 +73,25 @@ export default function StopwatchScreen() {
     if (Platform.OS === 'web') {
       const v = localStorage.getItem('@tick/bg_image');
       if (v) setBgImage(v);
+      const d = localStorage.getItem('@tick/bg_dimness');
+      if (d) setBgDimness(parseFloat(d));
     } else {
       AsyncStorage.getItem('@tick/bg_image').then(v => {
         if (v) setBgImage(v);
       });
+      AsyncStorage.getItem('@tick/bg_dimness').then(d => {
+        if (d) setBgDimness(parseFloat(d));
+      });
+    }
+  }, []);
+
+  const handleDimnessChange = useCallback((val: number) => {
+    setBgDimness(val);
+    const vStr = val.toString();
+    if (Platform.OS === 'web') {
+      localStorage.setItem('@tick/bg_dimness', vStr);
+    } else {
+      AsyncStorage.setItem('@tick/bg_dimness', vStr);
     }
   }, []);
 
@@ -72,28 +116,6 @@ export default function StopwatchScreen() {
     }
   };
 
-  // Animated ring
-  const ringPulse = useSharedValue(0);
-  const ringOpacity = useSharedValue(0);
-
-  const startPulse = useCallback(() => {
-    ringOpacity.value = withTiming(1, { duration: 300 });
-    ringPulse.value = 0;
-    ringPulse.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0, { duration: 2000, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const stopPulse = useCallback(() => {
-    cancelAnimation(ringPulse);
-    ringOpacity.value = withTiming(0, { duration: 300 });
-  }, []);
-
   const startTimer = useCallback(() => {
     const now = Date.now();
     if (timerState === 'idle') {
@@ -104,14 +126,12 @@ export default function StopwatchScreen() {
       startTimeRef.current = now;
     }
     setTimerState('running');
-    startPulse();
-  }, [timerState, startPulse]);
+  }, [timerState]);
 
   const pauseTimer = useCallback(() => {
     setTimerState('paused');
     pausedElapsedRef.current = elapsed;
-    stopPulse();
-  }, [elapsed, stopPulse]);
+  }, [elapsed]);
 
   const completeTimer = useCallback(() => {
     const endTime = Date.now();
@@ -121,7 +141,6 @@ export default function StopwatchScreen() {
     setTimerState('idle');
     setElapsed(0);
     pausedElapsedRef.current = 0;
-    stopPulse();
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
@@ -137,19 +156,18 @@ export default function StopwatchScreen() {
         isNew: 'true',
       },
     });
-  }, [elapsed, router, stopPulse]);
+  }, [elapsed, router]);
 
   const resetTimer = useCallback(() => {
     setTimerState('idle');
     setElapsed(0);
     pausedElapsedRef.current = 0;
-    stopPulse();
 
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  }, [stopPulse]);
+  }, []);
 
   useEffect(() => {
     if (timerState === 'running') {
@@ -175,11 +193,6 @@ export default function StopwatchScreen() {
     opacity: uiOpacity.value,
   }));
 
-  const ringStyle = useAnimatedStyle(() => ({
-    opacity: ringOpacity.value * interpolate(ringPulse.value, [0, 1], [0.15, 0.4]) * uiOpacity.value,
-    transform: [{ scale: interpolate(ringPulse.value, [0, 1], [0.95, 1.05]) }],
-  }));
-
   // Format time
   const totalSeconds = Math.floor(elapsed / 1000);
   const hours = Math.floor(totalSeconds / 3600);
@@ -190,7 +203,6 @@ export default function StopwatchScreen() {
     ? `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
     : `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-  const ringColor = 'rgba(255, 255, 255, 0.4)';
   const textColor = Colors.white;
 
   return (
@@ -209,26 +221,41 @@ export default function StopwatchScreen() {
         />
       )}
       {bgImage && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.3)' }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(0,0,0,${bgDimness})` }]} />
       )}
 
       {/* Header */}
-      <Animated.View style={[styles.header, uiStyle]}>
+      <Animated.View style={[styles.header, uiStyle, { zIndex: 10 }]}>
         <TouchableOpacity
           style={styles.hamburger}
           onPress={() => navigation.dispatch(DrawerActions.openDrawer())}
         >
           <Menu size={32} color={Colors.white} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.hamburger} onPress={pickImage}>
-          <ImageIcon size={28} color={Colors.white} />
-        </TouchableOpacity>
+        
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {bgImage && (
+            <TouchableOpacity style={styles.hamburger} onPress={() => setShowDimSlider(!showDimSlider)}>
+              <Sun size={26} color={Colors.white} />
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.hamburger} onPress={pickImage}>
+            <ImageIcon size={28} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
       </Animated.View>
+
+      {/* Dropdown for Dimness Slider */}
+      {showDimSlider && bgImage && (
+        <Animated.View style={[{ position: 'absolute', top: insets.top + 60, right: Spacing.md, backgroundColor: 'rgba(0,0,0,0.6)', padding: Spacing.md, borderRadius: BorderRadius.lg, zIndex: 10 }, uiStyle]}>
+           <Text style={{ color: Colors.white, marginBottom: Spacing.md, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Dimness</Text>
+           <DimnessSlider value={bgDimness} onValueChange={handleDimnessChange} />
+        </Animated.View>
+      )}
 
       {/* Timer area */}
       <View style={styles.timerArea}>
-        <Animated.View style={[styles.ring, ringStyle, { borderColor: ringColor }]} />
-
         <View style={styles.timerTextWrap}>
           <Text style={[styles.timerMain, { color: textColor }]} adjustsFontSizeToFit numberOfLines={1}>
             {timeMain}
@@ -333,13 +360,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.md,
-  },
-  ring: {
-    position: 'absolute',
-    width: RING_SIZE,
-    height: RING_SIZE,
-    borderRadius: RING_SIZE / 2,
-    borderWidth: 3,
   },
   timerTextWrap: {
     flexDirection: 'row',
