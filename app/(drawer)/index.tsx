@@ -11,6 +11,7 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,10 +19,19 @@ import { BorderRadius, Colors, FontSize, Spacing } from '../../src/theme';
 
 type TimerState = 'idle' | 'running' | 'paused';
 
-const DimnessSlider = ({ value, onValueChange }: { value: number, onValueChange: (v: number) => void }) => {
+const CustomSlider = ({ value, onValueChange }: { value: number, onValueChange: (v: number) => void }) => {
   const [width, setWidth] = useState(0);
   const widthRef = useRef(width);
   widthRef.current = width;
+
+  const scale = useSharedValue(1);
+  const isHovered = useRef(false);
+
+  const fastSpring = {
+    stiffness: 300,
+    damping: 20,
+    mass: 0.5,
+  };
 
   const handleDrag = useCallback((e: any) => {
     if (widthRef.current > 0) {
@@ -30,24 +40,40 @@ const DimnessSlider = ({ value, onValueChange }: { value: number, onValueChange:
     }
   }, [onValueChange]);
 
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
   return (
-    <View 
-      style={{ height: 40, justifyContent: 'center', width: 200 }}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-      onStartShouldSetResponder={() => true}
-      onResponderGrant={handleDrag}
-      onResponderMove={handleDrag}
-    >
-      <View pointerEvents="none" style={{ height: 6, backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 3 }}>
-        <View style={{ height: 6, backgroundColor: Colors.white, width: `${value * 100}%`, borderRadius: 3 }} />
-      </View>
-      <View pointerEvents="none" style={{
-        position: 'absolute',
-        left: `${value * 100}%`,
-        marginLeft: -10,
-        height: 20, width: 20, borderRadius: 10,
-        backgroundColor: Colors.white,
-      }} />
+    <View style={{ height: 40, justifyContent: 'center', width: 220 }}>
+      <Animated.View 
+        style={[{ height: 32, width: '100%', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }, animatedStyle]}
+        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        onStartShouldSetResponder={() => true}
+        onResponderGrant={(e) => {
+          scale.value = withSpring(0.95, fastSpring);
+          handleDrag(e);
+        }}
+        onResponderMove={handleDrag}
+        onResponderRelease={() => {
+          scale.value = withSpring(isHovered.current ? 1.05 : 1, fastSpring);
+        }}
+        onResponderTerminate={() => {
+          scale.value = withSpring(isHovered.current ? 1.05 : 1, fastSpring);
+        }}
+        //@ts-ignore
+        onPointerEnter={() => {
+          isHovered.current = true;
+          scale.value = withSpring(1.05, fastSpring);
+        }}
+        //@ts-ignore
+        onPointerLeave={() => {
+          isHovered.current = false;
+          scale.value = withSpring(1, fastSpring);
+        }}
+      >
+        <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${value * 100}%`, backgroundColor: Colors.white }} />
+      </Animated.View>
     </View>
   );
 };
@@ -61,6 +87,7 @@ export default function StopwatchScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [bgImage, setBgImage] = useState<string | null>(null);
   const [bgDimness, setBgDimness] = useState<number>(0.3);
+  const [bgBlur, setBgBlur] = useState<number>(0);
   const [showDimSlider, setShowDimSlider] = useState(false);
 
   const startTimeRef = useRef<number>(0);
@@ -75,12 +102,17 @@ export default function StopwatchScreen() {
       if (v) setBgImage(v);
       const d = localStorage.getItem('@tick/bg_dimness');
       if (d) setBgDimness(parseFloat(d));
+      const b = localStorage.getItem('@tick/bg_blur');
+      if (b) setBgBlur(parseFloat(b));
     } else {
       AsyncStorage.getItem('@tick/bg_image').then(v => {
         if (v) setBgImage(v);
       });
       AsyncStorage.getItem('@tick/bg_dimness').then(d => {
         if (d) setBgDimness(parseFloat(d));
+      });
+      AsyncStorage.getItem('@tick/bg_blur').then(b => {
+        if (b) setBgBlur(parseFloat(b));
       });
     }
   }, []);
@@ -92,6 +124,16 @@ export default function StopwatchScreen() {
       localStorage.setItem('@tick/bg_dimness', vStr);
     } else {
       AsyncStorage.setItem('@tick/bg_dimness', vStr);
+    }
+  }, []);
+
+  const handleBlurChange = useCallback((val: number) => {
+    setBgBlur(val);
+    const vStr = val.toString();
+    if (Platform.OS === 'web') {
+      localStorage.setItem('@tick/bg_blur', vStr);
+    } else {
+      AsyncStorage.setItem('@tick/bg_blur', vStr);
     }
   }, []);
 
@@ -206,7 +248,7 @@ export default function StopwatchScreen() {
   const textColor = Colors.white;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, overflow: 'hidden' }]}>
       <LinearGradient
         colors={['#FF4E50', '#F9D423']}
         start={{ x: 0, y: 0 }}
@@ -216,8 +258,9 @@ export default function StopwatchScreen() {
       {bgImage && (
         <Image
           source={{ uri: bgImage }}
-          style={StyleSheet.absoluteFill}
+          style={[StyleSheet.absoluteFill, { transform: [{ scale: 1 + (bgBlur * 0.2) }] }]}
           contentFit="cover"
+          blurRadius={bgBlur * 50}
         />
       )}
       {bgImage && (
@@ -246,11 +289,14 @@ export default function StopwatchScreen() {
         </View>
       </Animated.View>
 
-      {/* Dropdown for Dimness Slider */}
+      {/* Dropdown for Settings */}
       {showDimSlider && bgImage && (
-        <Animated.View style={[{ position: 'absolute', top: insets.top + 60, right: Spacing.md, backgroundColor: 'rgba(0,0,0,0.6)', padding: Spacing.md, borderRadius: BorderRadius.lg, zIndex: 10 }, uiStyle]}>
-           <Text style={{ color: Colors.white, marginBottom: Spacing.md, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Dimness</Text>
-           <DimnessSlider value={bgDimness} onValueChange={handleDimnessChange} />
+        <Animated.View style={[styles.dropdownPanel, { top: insets.top + 60 }, uiStyle]}>
+           <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Dimness</Text>
+           <CustomSlider value={bgDimness} onValueChange={handleDimnessChange} />
+           <View style={{ height: Spacing.lg }} />
+           <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Blur</Text>
+           <CustomSlider value={bgBlur} onValueChange={handleBlurChange} />
         </Animated.View>
       )}
 
@@ -341,6 +387,25 @@ export default function StopwatchScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  dropdownPanel: {
+    position: 'absolute',
+    right: Spacing.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.34)',
+    padding: Spacing.xl,
+    borderRadius: 16,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.25)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 30,
+    elevation: 10,
+    ...(Platform.OS === 'web' && {
+      backdropFilter: 'blur(7px)',
+      WebkitBackdropFilter: 'blur(7px)',
+    } as any),
   },
   header: {
     flexDirection: 'row',
