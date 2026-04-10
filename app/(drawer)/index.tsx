@@ -4,15 +4,14 @@ import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { ImageIcon, Menu, Pause, Play, Square, RotateCcw, Sun } from 'lucide-react-native';
+import { ImageIcon, Menu, Pause, Play, RotateCcw, Square, Sun } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
-  Easing,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-  withTiming,
+  withTiming
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BorderRadius, Colors, FontSize, Spacing } from '../../src/theme';
@@ -46,25 +45,25 @@ const CustomSlider = ({ value, onValueChange }: { value: number, onValueChange: 
 
   return (
     <View style={{ height: 40, justifyContent: 'center', width: 220 }}>
-      <Animated.View 
+      <Animated.View
         style={[{ height: 32, width: '100%', borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.2)', overflow: 'hidden' }, animatedStyle]}
         onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
         onStartShouldSetResponder={() => true}
         onResponderGrant={(e) => {
-          scale.value = withSpring(0.95, fastSpring);
+          scale.value = withSpring(0.98, fastSpring);
           handleDrag(e);
         }}
         onResponderMove={handleDrag}
         onResponderRelease={() => {
-          scale.value = withSpring(isHovered.current ? 1.05 : 1, fastSpring);
+          scale.value = withSpring(isHovered.current ? 1.02 : 1, fastSpring);
         }}
         onResponderTerminate={() => {
-          scale.value = withSpring(isHovered.current ? 1.05 : 1, fastSpring);
+          scale.value = withSpring(isHovered.current ? 1.02 : 1, fastSpring);
         }}
         //@ts-ignore
         onPointerEnter={() => {
           isHovered.current = true;
-          scale.value = withSpring(1.05, fastSpring);
+          scale.value = withSpring(1.02, fastSpring);
         }}
         //@ts-ignore
         onPointerLeave={() => {
@@ -149,7 +148,7 @@ export default function StopwatchScreen() {
       const asset = result.assets[0];
       const uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
       setBgImage(uri);
-      
+
       if (Platform.OS === 'web') {
         localStorage.setItem('@tick/bg_image', uri);
       } else {
@@ -275,7 +274,7 @@ export default function StopwatchScreen() {
         >
           <Menu size={32} color={Colors.white} />
         </TouchableOpacity>
-        
+
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {bgImage && (
             <TouchableOpacity style={styles.hamburger} onPress={() => setShowDimSlider(!showDimSlider)}>
@@ -292,11 +291,11 @@ export default function StopwatchScreen() {
       {/* Dropdown for Settings */}
       {showDimSlider && bgImage && (
         <Animated.View style={[styles.dropdownPanel, { top: insets.top + 60 }, uiStyle]}>
-           <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Dimness</Text>
-           <CustomSlider value={bgDimness} onValueChange={handleDimnessChange} />
-           <View style={{ height: Spacing.lg }} />
-           <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Blur</Text>
-           <CustomSlider value={bgBlur} onValueChange={handleBlurChange} />
+          <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Dimness</Text>
+          <CustomSlider value={bgDimness} onValueChange={handleDimnessChange} />
+          <View style={{ height: Spacing.lg }} />
+          <Text style={{ color: Colors.white, marginBottom: Spacing.sm, fontFamily: 'DMSans_600SemiBold', fontSize: FontSize.sm }}>Background Blur</Text>
+          <CustomSlider value={bgBlur} onValueChange={handleBlurChange} />
         </Animated.View>
       )}
 
